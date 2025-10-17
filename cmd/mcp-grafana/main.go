@@ -308,6 +308,12 @@ func main() {
 	}
 }
 
+mcpgrafana.ComposedStdioContextFunc(mcpgrafana.GrafanaConfig{
+     Debug:     gc.debug,
+     TLSConfig: nil,
+})
+
+
 func parseLevel(level string) slog.Level {
 	var l slog.Level
 	if err := l.UnmarshalText([]byte(level)); err != nil {
