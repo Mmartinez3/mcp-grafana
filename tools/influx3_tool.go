@@ -4,7 +4,7 @@ import (
     "context"
     "fmt"
 
-    "github.com/grafana/mcp-grafana/pkg/toolapi"
+    "github.com/grafana/mcp-grafana/tools"
 )
 
 // RegisterInflux3Tools registra las funciones/metodos que expondrás via MCP
