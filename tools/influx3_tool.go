@@ -4,7 +4,7 @@ import (
     "context"
     "fmt"
 
-    "github.com/grafana/mcp-grafana/tools"
+    "github.com/grafana/mcp-grafana/pkg/toolapi"
 )
 
 func RegisterInflux3Tools(server *toolapi.Server, client *Client) {
@@ -89,6 +89,3 @@ func RegisterInflux3Tools(server *toolapi.Server, client *Client) {
 
     // Podés registrar más funciones si lo necesitás
 }
-el servidor, métricas arbitrarias, etc.
-}
-
