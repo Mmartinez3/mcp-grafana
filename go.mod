@@ -1,136 +1,300 @@
-module github.com/grafana/mcp-grafana
+package main
 
-go 1.24.6
+import (
+    "context"
+    "errors"
+    "flag"
+    "fmt"
+    "log/slog"
+    "net/http"
+    "os"
+    "os/signal"
+    "slices"
+    "strings"
+    "syscall"
+    "time"
 
-require (
-	connectrpc.com/connect v1.19.1
-	github.com/PaesslerAG/gval v1.2.4
-	github.com/PaesslerAG/jsonpath v0.1.1
-	github.com/go-openapi/runtime v0.29.0
-	github.com/go-openapi/strfmt v0.24.0
-	github.com/google/uuid v1.6.0
-	github.com/grafana/amixr-api-go-client v0.0.26
-	github.com/grafana/grafana-openapi-client-go v0.0.0-20250617151817-c0f8cbb88d5c
-	github.com/grafana/grafana-plugin-sdk-go v0.280.0
-	github.com/grafana/incident-go v0.0.0-20250211094540-dc6a98fdae43
-	github.com/grafana/pyroscope/api v1.2.0
-	github.com/invopop/jsonschema v0.13.0
-	github.com/mark3labs/mcp-go v0.41.1
-	github.com/prometheus/client_golang v1.23.2
-	github.com/prometheus/common v0.67.1
-	github.com/prometheus/prometheus v0.306.0
-	github.com/stretchr/testify v1.11.1
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
-	go.opentelemetry.io/otel v1.38.0
-	go.opentelemetry.io/otel/sdk v1.38.0
+    "github.com/mark3labs/mcp-go/server"
+    mcpgrafana "github.com/grafana/mcp-grafana"
+    "github.com/grafana/mcp-grafana/tools"
+
+    // Import correcto para tu módulo, según tu go.mod
+    "github.com/grafana/mcp-grafana/tools/influx3"
 )
 
-require (
-	github.com/apache/arrow-go/v18 v18.4.1 // indirect
-	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
-	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/buger/jsonparser v1.1.1 // indirect
-	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/cheekybits/genny v1.0.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/fatih/color v1.18.0 // indirect
-	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
-	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-openapi/analysis v0.24.0 // indirect
-	github.com/go-openapi/errors v0.22.3 // indirect
-	github.com/go-openapi/jsonpointer v0.22.1 // indirect
-	github.com/go-openapi/jsonreference v0.21.2 // indirect
-	github.com/go-openapi/loads v0.23.1 // indirect
-	github.com/go-openapi/spec v0.22.0 // indirect
-	github.com/go-openapi/swag v0.23.1 // indirect
-	github.com/go-openapi/swag/conv v0.25.1 // indirect
-	github.com/go-openapi/swag/fileutils v0.25.1 // indirect
-	github.com/go-openapi/swag/jsonname v0.25.1 // indirect
-	github.com/go-openapi/swag/jsonutils v0.25.1 // indirect
-	github.com/go-openapi/swag/loading v0.25.1 // indirect
-	github.com/go-openapi/swag/mangling v0.25.1 // indirect
-	github.com/go-openapi/swag/stringutils v0.25.1 // indirect
-	github.com/go-openapi/swag/typeutils v0.25.1 // indirect
-	github.com/go-openapi/swag/yamlutils v0.25.1 // indirect
-	github.com/go-openapi/validate v0.25.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/gogo/googleapis v1.4.1 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/google/flatbuffers v25.2.10+incompatible // indirect
-	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
-	github.com/gorilla/mux v1.8.0 // indirect
-	github.com/grafana/otel-profiling-go v0.5.1 // indirect
-	github.com/grafana/pyroscope-go/godeltaprof v0.1.9 // indirect
-	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0 // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
-	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
-	github.com/hashicorp/go-hclog v1.6.3 // indirect
-	github.com/hashicorp/go-plugin v1.7.0 // indirect
-	github.com/hashicorp/go-retryablehttp v0.7.7 // indirect
-	github.com/hashicorp/yamux v0.1.2 // indirect
-	github.com/jaegertracing/jaeger-idl v0.5.0 // indirect
-	github.com/josharian/intern v1.0.0 // indirect
-	github.com/jpillora/backoff v1.0.0 // indirect
-	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/jszwedko/go-datemath v0.1.1-0.20230526204004-640a500621d6 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
-	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/mailru/easyjson v0.9.0 // indirect
-	github.com/mattetti/filebuffer v1.0.1 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	github.com/oklog/run v1.2.0 // indirect
-	github.com/oklog/ulid v1.3.1 // indirect
-	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/pierrec/lz4/v4 v4.1.22 // indirect
-	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/procfs v0.16.1 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/shopspring/decimal v1.3.1 // indirect
-	github.com/spf13/cast v1.7.1 // indirect
-	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
-	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	github.com/zeebo/xxh3 v1.0.2 // indirect
-	go.mongodb.org/mongo-driver v1.17.4 // indirect
-	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.63.0 // indirect
-	go.opentelemetry.io/contrib/propagators/jaeger v1.38.0 // indirect
-	go.opentelemetry.io/contrib/samplers/jaegerremote v0.32.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.38.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.38.0 // indirect
-	go.opentelemetry.io/otel/metric v1.38.0 // indirect
-	go.opentelemetry.io/otel/trace v1.38.0 // indirect
-	go.opentelemetry.io/proto/otlp v1.7.1 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/exp v0.0.0-20250811191247-51f88131bc50 // indirect
-	golang.org/x/mod v0.27.0 // indirect
-	golang.org/x/net v0.44.0 // indirect
-	golang.org/x/oauth2 v0.31.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
-	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20250825161204-c5933d9347a5 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250825161204-c5933d9347a5 // indirect
-	google.golang.org/grpc v1.75.0 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
-)
+func maybeAddTools(s *server.MCPServer, tf func(*server.MCPServer), enabledTools []string, disable bool, category string) {
+    if !slices.Contains(enabledTools, category) {
+        slog.Debug("Not enabling tools", "category", category)
+        return
+    }
+    if disable {
+        slog.Info("Disabling tools", "category", category)
+        return
+    }
+    slog.Debug("Enabling tools", "category", category)
+    tf(s)
+}
+
+// disabledTools indica qué herramientas pueden estar deshabilitadas
+type disabledTools struct {
+    enabledTools string
+
+    search, datasource, incident,
+    prometheus, loki, alerting,
+    dashboard, folder, oncall, asserts, sift, admin,
+    pyroscope, navigation bool
+}
+
+// grafanaConfig extiende la configuración de Grafana con campos para Influx3
+type grafanaConfig struct {
+    debug bool
+
+    tlsCertFile   string
+    tlsKeyFile    string
+    tlsCAFile     string
+    tlsSkipVerify bool
+
+    EnableInflux3 bool
+    Influx3URL    string
+    Influx3Token  string
+    Influx3Bucket string
+    Influx3UseSQL bool
+}
+
+func (dt *disabledTools) addFlags() {
+    flag.StringVar(&dt.enabledTools, "enabled-tools", "search,datasource,incident,prometheus,loki,alerting,dashboard,folder,oncall,asserts,sift,admin,pyroscope,navigation", "A comma separated list of tools enabled for this server.")
+
+    flag.BoolVar(&dt.search, "disable-search", false, "Disable search tools")
+    flag.BoolVar(&dt.datasource, "disable-datasource", false, "Disable datasource tools")
+    flag.BoolVar(&dt.incident, "disable-incident", false, "Disable incident tools")
+    flag.BoolVar(&dt.prometheus, "disable-prometheus", false, "Disable prometheus tools")
+    flag.BoolVar(&dt.loki, "disable-loki", false, "Disable loki tools")
+    flag.BoolVar(&dt.alerting, "disable-alerting", false, "Disable alerting tools")
+    flag.BoolVar(&dt.dashboard, "disable-dashboard", false, "Disable dashboard tools")
+    flag.BoolVar(&dt.folder, "disable-folder", false, "Disable folder tools")
+    flag.BoolVar(&dt.oncall, "disable-oncall", false, "Disable oncall tools")
+    flag.BoolVar(&dt.asserts, "disable-asserts", false, "Disable asserts tools")
+    flag.BoolVar(&dt.sift, "disable-sift", false, "Disable sift tools")
+    flag.BoolVar(&dt.admin, "disable-admin", false, "Disable admin tools")
+    flag.BoolVar(&dt.pyroscope, "disable-pyroscope", false, "Disable pyroscope tools")
+    flag.BoolVar(&dt.navigation, "disable-navigation", false, "Disable navigation tools")
+}
+
+func (gc *grafanaConfig) addFlags() {
+    flag.BoolVar(&gc.debug, "debug", false, "Enable debug mode for the Grafana transport")
+
+    flag.StringVar(&gc.tlsCertFile, "tls-cert-file", "", "Path to TLS certificate file for client authentication")
+    flag.StringVar(&gc.tlsKeyFile, "tls-key-file", "", "Path to TLS private key file for client authentication")
+    flag.StringVar(&gc.tlsCAFile, "tls-ca-file", "", "Path to TLS CA certificate file for server verification")
+    flag.BoolVar(&gc.tlsSkipVerify, "tls-skip-verify", false, "Skip TLS certificate verification (insecure)")
+
+    flag.BoolVar(&gc.EnableInflux3, "enable-influx3", false, "Enable InfluxDB 3 tool")
+    flag.StringVar(&gc.Influx3URL, "influx3-url", "", "URL de InfluxDB 3")
+    flag.StringVar(&gc.Influx3Token, "influx3-token", "", "Token de acceso para InfluxDB 3")
+    flag.StringVar(&gc.Influx3Bucket, "influx3-bucket", "telegraf", "Bucket de InfluxDB para consultas (default telegraf)")
+    flag.BoolVar(&gc.Influx3UseSQL, "influx3-use-sql", true, "Usar SQL para consultas (si no, usar InfluxQL)")
+}
+
+func (dt *disabledTools) addTools(s *server.MCPServer) {
+    enabledTools := strings.Split(dt.enabledTools, ",")
+    maybeAddTools(s, tools.AddSearchTools, enabledTools, dt.search, "search")
+    maybeAddTools(s, tools.AddDatasourceTools, enabledTools, dt.datasource, "datasource")
+    maybeAddTools(s, tools.AddIncidentTools, enabledTools, dt.incident, "incident")
+    maybeAddTools(s, tools.AddPrometheusTools, enabledTools, dt.prometheus, "prometheus")
+    maybeAddTools(s, tools.AddLokiTools, enabledTools, dt.loki, "loki")
+    maybeAddTools(s, tools.AddAlertingTools, enabledTools, dt.alerting, "alerting")
+    maybeAddTools(s, tools.AddDashboardTools, enabledTools, dt.dashboard, "dashboard")
+    maybeAddTools(s, tools.AddFolderTools, enabledTools, dt.folder, "folder")
+    maybeAddTools(s, tools.AddOnCallTools, enabledTools, dt.oncall, "oncall")
+    maybeAddTools(s, tools.AddAssertsTools, enabledTools, dt.asserts, "asserts")
+    maybeAddTools(s, tools.AddSiftTools, enabledTools, dt.sift, "sift")
+    maybeAddTools(s, tools.AddAdminTools, enabledTools, dt.admin, "admin")
+    maybeAddTools(s, tools.AddPyroscopeTools, enabledTools, dt.pyroscope, "pyroscope")
+    maybeAddTools(s, tools.AddNavigationTools, enabledTools, dt.navigation, "navigation")
+}
+
+func newServer(dt disabledTools) *server.MCPServer {
+    s := server.NewMCPServer("mcp-grafana", mcpgrafana.Version(), server.WithInstructions(`
+    This server provides access to your Grafana instance and the surrounding ecosystem.
+
+    Available Capabilities:
+    - Dashboards: Search, retrieve, update, and create dashboards. Extract panel queries and datasource information.
+    - Datasources: List and fetch details for datasources.
+    - Prometheus & Loki: Run PromQL and LogQL queries, retrieve metric/log metadata, and explore label names/values.
+    - Incidents: Search, create, update, and resolve incidents in Grafana Incident.
+    - Sift Investigations: Start and manage Sift investigations, analyze logs/traces, find error patterns, and detect slow requests.
+    - Alerting: List and fetch alert rules and notification contact points.
+    - OnCall: View and manage on-call schedules, shifts, teams, and users.
+    - Admin: List teams and perform administrative tasks.
+    - Pyroscope: Profile applications and fetch profiling data.
+    - Navigation: Generate deeplink URLs for Grafana resources like dashboards, panels, and Explore queries.
+    `))
+    dt.addTools(s)
+    return s
+}
+
+type tlsConfig struct {
+    certFile, keyFile string
+}
+
+func (tc *tlsConfig) addFlags() {
+    flag.StringVar(&tc.certFile, "server.tls-cert-file", "", "Path to TLS certificate file for server HTTPS (required for TLS)")
+    flag.StringVar(&tc.keyFile, "server.tls-key-file", "", "Path to TLS private key file for server HTTPS (required for TLS)")
+}
+
+func runHTTPServer(ctx context.Context, srv httpServer, addr, transportName string) error {
+    serverErr := make(chan error, 1)
+    go func() {
+        if err := srv.Start(addr); err != nil {
+            serverErr <- err
+        }
+        close(serverErr)
+    }()
+
+    select {
+    case err := <-serverErr:
+        return err
+    case <-ctx.Done():
+        slog.Info(fmt.Sprintf("%s server shutting down...", transportName))
+        shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+        defer shutdownCancel()
+
+        if err := srv.Shutdown(shutdownCtx); err != nil {
+            return fmt.Errorf("shutdown error: %v", err)
+        }
+
+        select {
+        case err := <-serverErr:
+            if err != nil && !errors.Is(err, http.ErrServerClosed) {
+                return fmt.Errorf("server error during shutdown: %v", err)
+            }
+        case <-shutdownCtx.Done():
+            slog.Warn(fmt.Sprintf("%s server did not stop gracefully within timeout", transportName))
+        }
+    }
+
+    return nil
+}
+
+func handleHealthz(w http.ResponseWriter, r *http.Request) {
+    w.WriteHeader(http.StatusOK)
+    _, _ = w.Write([]byte("ok"))
+}
+
+func run(transport, addr, basePath, endpointPath string, logLevel slog.Level, dt disabledTools, gc grafanaConfig, tls tlsConfig) error {
+    slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
+    s := newServer(dt)
+
+    // Inicialización de cliente Influx3 (si está habilitado)
+    var influx3Client *influx3.Client
+    if gc.EnableInflux3 {
+        var err error
+        influx3Client, err = influx3.NewClient(gc.Influx3URL, gc.Influx3Token, gc.Influx3Bucket, gc.Influx3UseSQL)
+        if err != nil {
+            return fmt.Errorf("failed to initialize Influx3 client: %w", err)
+        }
+    }
+
+    // Registrar herramientas principales
+    dt.addTools(s)
+
+    // Registrar herramientas Influx3 si fue habilitado
+    if gc.EnableInflux3 {
+        tools.AddInflux3Tools(s, influx3Client)
+    }
+
+    switch transport {
+    case "stdio":
+        srv := server.NewStdioServer(s)
+        srv.SetContextFunc(mcpgrafana.ComposedStdioContextFunc(mcpgrafana.GrafanaConfig{
+            Debug:     gc.debug,
+            TLSConfig: nil, // si usás TLS mapealo
+        }))
+        slog.Info("Starting Grafana MCP server using stdio transport", "version", mcpgrafana.Version())
+
+        if err := srv.Listen(context.Background(), os.Stdin, os.Stdout); err != nil && err != context.Canceled {
+            return fmt.Errorf("server error: %v", err)
+        }
+        return nil
+
+    case "sse":
+        httpSrv := &http.Server{Addr: addr}
+        srv := server.NewSSEServer(s,
+            server.WithSSEContextFunc(mcpgrafana.ComposedSSEContextFunc(mcpgrafana.GrafanaConfig{
+                Debug:     gc.debug,
+                TLSConfig: nil,
+            })),
+            server.WithStaticBasePath(basePath),
+            server.WithHTTPServer(httpSrv),
+        )
+        mux := http.NewServeMux()
+        if basePath == "" {
+            basePath = "/"
+        }
+        mux.Handle(basePath, srv)
+        mux.HandleFunc("/healthz", handleHealthz)
+        httpSrv.Handler = mux
+        slog.Info("Starting Grafana MCP server using SSE transport", "version", mcpgrafana.Version(), "address", addr, "basePath", basePath)
+        return runHTTPServer(context.Background(), srv, addr, "SSE")
+
+    case "streamable-http":
+        httpSrv := &http.Server{Addr: addr}
+        opts := []server.StreamableHTTPOption{
+            server.WithHTTPContextFunc(mcpgrafana.ComposedHTTPContextFunc(mcpgrafana.GrafanaConfig{
+                Debug:     gc.debug,
+                TLSConfig: nil,
+            })),
+            server.WithStateLess(true),
+            server.WithEndpointPath(endpointPath),
+            server.WithStreamableHTTPServer(httpSrv),
+        }
+        if tls.certFile != "" || tls.keyFile != "" {
+            opts = append(opts, server.WithTLSCert(tls.certFile, tls.keyFile))
+        }
+        srv := server.NewStreamableHTTPServer(s, opts...)
+        mux := http.NewServeMux()
+        mux.Handle(endpointPath, srv)
+        mux.HandleFunc("/healthz", handleHealthz)
+        httpSrv.Handler = mux
+        slog.Info("Starting Grafana MCP server using StreamableHTTP transport", "version", mcpgrafana.Version(), "address", addr, "endpointPath", endpointPath)
+        return runHTTPServer(context.Background(), srv, addr, "StreamableHTTP")
+
+    default:
+        return fmt.Errorf("invalid transport type: %s. Must be 'stdio', 'sse' or 'streamable-http'", transport)
+    }
+}
+
+func main() {
+    var transport string
+    flag.StringVar(&transport, "t", "stdio", "Transport type (stdio, sse or streamable-http)")
+    flag.StringVar(&transport, "transport", "stdio", "Transport type (stdio, sse or streamable-http)")
+    addr := flag.String("address", "localhost:8000", "The host and port to start the sse server on")
+    basePath := flag.String("base-path", "", "Base path for the sse server")
+    endpointPath := flag.String("endpoint-path", "/mcp", "Endpoint path for the streamable-http server")
+    logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+    showVersion := flag.Bool("version", false, "Print the version and exit")
+    var dt disabledTools
+    dt.addFlags()
+    var gc grafanaConfig
+    gc.addFlags()
+    var tls tlsConfig
+    tls.addFlags()
+    flag.Parse()
+
+    if *showVersion {
+        fmt.Println(mcpgrafana.Version())
+        os.Exit(0)
+    }
+
+    if err := run(transport, *addr, *basePath, *endpointPath, parseLevel(*logLevel), dt, gc, tls); err != nil {
+        panic(err)
+    }
+}
+
+func parseLevel(level string) slog.Level {
+    var l slog.Level
+    if err := l.UnmarshalText([]byte(level)); err != nil {
+        return slog.LevelInfo
+    }
+    return l
+}
